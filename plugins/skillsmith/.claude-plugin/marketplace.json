@@ -1,0 +1,23 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "skillsmith",
+  "description": "skillsmith — eval-gated skill optimizer for coding agents (propose → execute your repo's tests in a git worktree → gate → stage).",
+  "owner": {
+    "name": "JHoo0118"
+  },
+  "plugins": [
+    {
+      "name": "skillsmith",
+      "source": {
+        "source": "git-subdir",
+        "url": "https://github.com/JHoo0118/skillsmith.git",
+        "path": "plugins/skillsmith",
+        "ref": "main"
+      },
+      "description": "Eval-gated skill optimizer: propose skill edits, eval by executing your repo's own tests in an isolated git worktree, gate on measured lift, stage. Drives the `skillsmith` binary (on PATH via `cargo install --path .`; `$SKILLSMITH_HOME` optional); nothing live changes until you adopt.",
+      "category": "productivity",
+      "license": "MIT",
+      "homepage": "https://github.com/JHoo0118/skillsmith"
+    }
+  ]
+}

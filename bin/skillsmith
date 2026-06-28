@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# skillsmith launcher — rebuild-from-source, then run (dev convenience).
+#
+# Does an incremental `--release` build (a no-op in ~100ms when nothing changed)
+# then execs the binary. Home is NOT pinned here: it resolves to $SKILLSMITH_HOME,
+# else ~/.skillsmith (see resolve_home), so the demo auto-seeds and `projects/`
+# stay stable regardless of the caller's cwd. For a fixed install, prefer
+# `cargo install --path .` (puts `skillsmith` on PATH; no rebuild per call).
+set -euo pipefail
+
+REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cargo build --release --quiet --manifest-path "$REPO_DIR/Cargo.toml"
+exec "$REPO_DIR/target/release/skillsmith" "$@"

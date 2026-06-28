@@ -1,0 +1,42 @@
+# Gemini CLI custom command -> /skillsmith  (install to ~/.gemini/commands/)
+# After install run `/commands reload` inside the Gemini CLI.
+description = "Run skillsmith — eval-gated skill optimizer (optimize an agent skill against a repo's real tests)"
+prompt = """
+You are driving **skillsmith**, an eval-gated skill optimizer. The binary is the
+single source of truth — do not guess flags; if unsure, run it with `--help`.
+
+Requested action: {{args}}
+(If empty, treat it as `list`.)
+
+Using your shell tool, run `skillsmith` (installed on PATH via `cargo install --path .`;
+no env var needed — home defaults to ~/.skillsmith and the demo auto-seeds):
+
+  skillsmith {{args}}
+
+Actions: `list` (show projects) · `eval --project <name>` (one pass, no changes) ·
+`run --project <name>` (full loop; stages skill.staged.md + report.md — nothing
+live changes) · `adopt --project <name>` (copy skill.staged.md over the live skill —
+the only live-changing step) · `new` (scaffold a repo-local ./.skillsmith project; bare = auto-named).
+
+If the project doesn't exist yet (the user wants to optimize a repo and `list` has
+no such project), AUTHOR it for them interactively — do not make them hand-write
+config.toml. You can read the repo and ask the user; skillsmith's internal judge
+agent is blind, so a good config is your job:
+  1. `skillsmith new` from the repo (bare: repo-local, auto-named, repo_path auto-defaults).
+  2. Read the repo to find a small single-purpose function with a focused test.
+  3. CONFIRM the target + scope with the user before writing.
+  4. Write config.toml + a seed skill.md — the `intent` says WHAT but WITHHOLDS the
+     answer (no formulas/exact strings); the test file is held out (never a
+     context_file; skillsmith warns if it detects a leak).
+  5. `skillsmith run --project <name> --dry-run` to validate (no tokens), then `run`.
+
+After a `run`: read the report.md at the path skillsmith prints (under
+<home>/projects/<name>/, default ~/.skillsmith) and show the user the baseline ->
+best score, the lift, and the gate decision. If it improved (best > baseline), show
+the skill.staged.md vs live skill.md diff and ASK the user to adopt (HITL). On yes,
+run `skillsmith adopt --project <name>` (copies staged over the live skill, clears it);
+on no, leave it staged. Never edit the live skill yourself or adopt without that confirm.
+
+No API key needed by default (the default provider uses your installed `claude`
+CLI auth).
+"""

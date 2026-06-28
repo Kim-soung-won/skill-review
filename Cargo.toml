@@ -1,0 +1,18 @@
+[package]
+name = "skillsmith"
+version = "0.1.0"
+edition = "2024"
+description = "Eval-gated skill/prompt optimizer: propose -> eval (execute tests) -> gate -> stage."
+license = "MIT"
+
+[dependencies]
+tokio = { version = "1", features = ["full"] }
+genai = "0.6"
+clap = { version = "4", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.8"
+anyhow = "1"
+
+[dev-dependencies]
+tempfile = "3"

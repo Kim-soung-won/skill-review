@@ -1,0 +1,8 @@
+/target
+**/skill.staged.md
+**/report.md
+
+# Projects live in ~/.skillsmith (the default home), never in the repo. This line
+# only guards against accidentally committing a repo-local projects/ (full of private
+# repo paths) if you ever run with `--home .` or SKILLSMITH_HOME=<repo>. Demo = assets/.
+/projects/

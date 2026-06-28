@@ -1,0 +1,32 @@
+name = "demo"
+# Self-contained eval fixture: `fixture/` is a git repo that `skillsmith init`
+# seeds + commits, so the execution judge can `git worktree` it from any cwd —
+# no repo checkout, no $SKILLSMITH_HOME needed. repo_path is resolved relative
+# to THIS project dir.
+repo_path = "fixture"
+skill_file = "skill.md"
+provider = "claude"        # claude | codex | gemini (installed CLI, no key) | genai
+rounds = 2
+
+# Task 1 — easy: the intent fully specifies the behavior, so the agent passes
+# even with a weak skill. Demonstrates the eval/judge plumbing.
+[[task]]
+id = "slugify"
+intent = """Implement `slugify(text)` in strings.py: lowercase the text, replace runs of \
+whitespace with a single hyphen, drop characters that are not ascii-alphanumeric or hyphen, \
+collapse multiple hyphens into one, and strip leading/trailing hyphens."""
+context_files = ["strings.py"]
+target_files = ["strings.py"]
+verify_cmd = "python3 -m unittest test_strings"
+
+# Task 2 — convention: the separator is intentionally NOT in the intent and the
+# test is held out, so only the SKILL can carry it. Baseline fails; the optimizer
+# learns " :: " from the assertion output -> candidate passes -> measurable lift.
+[[task]]
+id = "house_join"
+intent = """Implement `house_join(items)` in format.py. It joins the list of string items into \
+one string using THIS PROJECT'S house-style separator. The separator is a project convention — \
+follow the PROJECT SKILL for the exact separator."""
+context_files = ["format.py"]
+target_files = ["format.py"]
+verify_cmd = "python3 -m unittest test_format"

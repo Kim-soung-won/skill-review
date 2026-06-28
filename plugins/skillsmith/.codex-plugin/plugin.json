@@ -1,0 +1,20 @@
+{
+  "name": "skillsmith",
+  "version": "0.1.0",
+  "description": "Eval-gated skill optimizer: propose skill edits, eval by executing your repo's own tests in a git worktree, gate on measured lift, stage. Drives the `skillsmith` binary (install on PATH via `cargo install --path .`); nothing live changes until you adopt.",
+  "author": {
+    "name": "JHoo0118"
+  },
+  "homepage": "https://github.com/JHoo0118/skillsmith",
+  "repository": "https://github.com/JHoo0118/skillsmith",
+  "license": "MIT",
+  "keywords": [
+    "skill-optimization",
+    "prompt-optimization",
+    "eval-gated",
+    "coding-agent",
+    "git-worktree",
+    "codex"
+  ],
+  "skills": "./skills/"
+}
