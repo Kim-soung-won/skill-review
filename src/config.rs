@@ -1,6 +1,5 @@
-//! Project config + eval task model. A "project" is a per-repo adapter living at
-//! `projects/<name>/config.toml` — this is the cross-project reuse seam: the
-//! optimizer core is project-agnostic; only these files are project-specific.
+//! 프로젝트 설정 + eval 태스크 모델. "프로젝트"는 `projects/<name>/config.toml`에 위치한
+//! 레포별 어댑터 — 옵티마이저 코어는 프로젝트에 무관하고, 이 파일들만 프로젝트 고유하다.
 
 use anyhow::{Context, Result, bail};
 use serde::Deserialize;
@@ -9,60 +8,58 @@ use std::path::{Path, PathBuf};
 #[derive(Debug, Clone, Deserialize)]
 pub struct ProjectConfig {
     pub name: String,
-    /// Git repo to worktree for the execution judge. Omit (repo-local mode) to
-    /// default to the git repo that encloses the project's `.skillsmith/` home.
+    /// 실행 judge용 git worktree 레포. 생략(레포 로컬 모드)하면
+    /// 프로젝트 `.skillsmith/` 홈을 포함하는 git 레포를 기본값으로 사용.
     #[serde(default)]
     pub repo_path: String,
-    /// Skill file (relative to the project dir) being optimized.
+    /// 최적화 대상 스킬 파일 (프로젝트 디렉토리 기준 상대 경로).
     pub skill_file: String,
     #[serde(default = "default_agent_model")]
     pub agent_model: String,
     #[serde(default = "default_optimizer_model")]
     pub optimizer_model: String,
-    /// LLM backend: "claude" | "codex" | "gemini" (installed CLI, no API key) |
-    /// "genai" (raw API via ANTHROPIC_API_KEY) | "cli" (custom `provider_cmd`).
+    /// LLM 백엔드: "claude" | "codex" | "gemini" (설치된 CLI, API 키 불필요) |
+    /// "genai" (ANTHROPIC_API_KEY로 직접 API 호출) | "cli" (커스텀 `provider_cmd`).
     #[serde(default = "default_provider")]
     pub provider: String,
-    /// Custom CLI base command (the prompt is appended as the final arg). Used
-    /// when `provider = "cli"`, or to override a preset's command.
+    /// 커스텀 CLI 기본 커맨드 (프롬프트가 마지막 인자로 붙음). `provider = "cli"`이거나
+    /// 프리셋 커맨드를 오버라이드할 때 사용.
     #[serde(default)]
     pub provider_cmd: Vec<String>,
-    /// Per-stage CLI command override for the cheap agent (eval) stage. Lets a CLI
-    /// provider tier down to a smaller model there, e.g.
-    /// `["claude","-p","--model","claude-haiku-4-5"]` or `["codex","exec","-m","gpt-5-mini"]`.
-    /// Empty -> use `provider_cmd`. Ignored by `genai` (which tiers by `agent_model`).
+    /// 저렴한 에이전트(eval) 단계용 CLI 커맨드 오버라이드. 작은 모델로 티어 다운 가능,
+    /// 예: `["claude","-p","--model","claude-haiku-4-5"]` 또는 `["codex","exec","-m","gpt-5-mini"]`.
+    /// 비어 있으면 `provider_cmd` 사용. `genai`는 `agent_model`로 티어링하므로 무시됨.
     #[serde(default)]
     pub agent_provider_cmd: Vec<String>,
-    /// Per-stage CLI command override for the optimizer (propose) stage. Empty ->
-    /// use `provider_cmd`. Ignored by `genai` (which tiers by `optimizer_model`).
+    /// 옵티마이저(propose) 단계용 CLI 커맨드 오버라이드. 비어 있으면
+    /// `provider_cmd` 사용. `genai`는 `optimizer_model`로 티어링하므로 무시됨.
     #[serde(default)]
     pub optimizer_provider_cmd: Vec<String>,
     #[serde(default = "default_rounds")]
     pub rounds: u32,
     #[serde(default, rename = "task")]
     pub tasks: Vec<Task>,
-    /// Optional `[deploy]` defaults for `skillsmith deploy` (skill name + the
-    /// frontmatter `description` trigger phrases). Both optional; CLI flags override.
+    /// `skillsmith deploy`용 선택적 `[deploy]` 기본값 (스킬 이름 + frontmatter `description`
+    /// 트리거 문구). 둘 다 선택적이며 CLI 플래그가 우선함.
     #[serde(default)]
     pub deploy: DeployConfig,
 }
 
-/// `[deploy]` defaults — let a project pin its skill name + trigger phrases so
-/// `skillsmith deploy` needs no flags (and works headless / in CI).
+/// `[deploy]` 기본값 — 프로젝트가 스킬 이름 + 트리거 문구를 고정해두면
+/// `skillsmith deploy`에 플래그 없이 실행 가능 (CI/헤드리스 환경에서도 동작).
 #[derive(Debug, Clone, Deserialize, Default)]
 pub struct DeployConfig {
-    /// Skill/block name override (default: the project `name`).
+    /// 스킬/블록 이름 오버라이드 (기본값: 프로젝트 `name`).
     #[serde(default)]
     pub name: String,
-    /// `description:` trigger phrases for `--as skill` (default: `--desc`, else a placeholder).
+    /// `--as skill`용 `description:` 트리거 문구 (기본값: `--desc`, 없으면 플레이스홀더).
     #[serde(default)]
     pub description: String,
 }
 
-/// Which split a task belongs to. **train** — the optimizer sees its failures and
-/// proposes edits against them. **val** — held out from the optimizer; the gate
-/// scores accept/reject on these. **test** — never run during optimization; the best
-/// skill is evaluated on these ONCE at the end for an unbiased final number.
+/// 태스크가 속하는 스플릿. **train** — 옵티마이저가 실패를 보고 편집을 제안.
+/// **val** — 옵티마이저에게 숨겨짐; 게이트가 이것으로 수락/거절 결정.
+/// **test** — 최적화 중 절대 실행되지 않음; 마지막에 최적 스킬에 대해 단 한 번 평가해 편향 없는 최종 수치 산출.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum TaskSplit {
@@ -74,31 +71,31 @@ pub enum TaskSplit {
 #[derive(Debug, Clone, Deserialize)]
 pub struct Task {
     pub id: String,
-    /// What the agent must do (the test file is held out, not shown).
+    /// 에이전트가 수행해야 할 내용 (테스트 파일은 숨겨져 있어 보이지 않음).
     pub intent: String,
-    /// Files shown to the agent as context (relative to repo_path).
+    /// 에이전트에게 컨텍스트로 보여주는 파일들 (repo_path 기준 상대 경로).
     #[serde(default)]
     pub context_files: Vec<String>,
-    /// Files the agent is expected to write (advisory hint in the prompt).
+    /// 에이전트가 작성할 것으로 기대되는 파일들 (프롬프트의 힌트용).
     #[serde(default)]
     pub target_files: Vec<String>,
-    /// Held out from training: the optimizer never sees this task's failures, and
-    /// the gate scores ONLY held-out tasks (when any exist). Default false.
-    /// Back-compat alias for `split = "val"` — `split` wins if both are set.
+    /// 학습에서 숨김: 옵티마이저가 이 태스크의 실패를 절대 보지 않으며,
+    /// 게이트는 held-out 태스크가 있을 때 그것만으로 점수를 매김. 기본값 false.
+    /// `split = "val"`의 하위 호환 별칭 — 둘 다 설정되면 `split`이 우선.
     #[serde(default)]
     pub holdout: bool,
-    /// Explicit train/val/test split. Omitted -> `val` when `holdout = true`, else `train`.
+    /// 명시적 train/val/test 스플릿. 생략 시 `holdout = true`면 `val`, 아니면 `train`.
     #[serde(default)]
     pub split: Option<TaskSplit>,
-    /// Optional shell run in the worktree before applying edits (seed state).
+    /// 편집 적용 전 worktree에서 실행되는 선택적 셸 커맨드 (초기 상태 설정).
     #[serde(default)]
     pub setup_cmd: String,
-    /// Shell run in the worktree after edits; exit code 0 == pass.
+    /// 편집 후 worktree에서 실행; exit code 0 == 통과.
     pub verify_cmd: String,
 }
 
 impl Task {
-    /// Resolved split: explicit `split` wins; else `val` if `holdout`, else `train`.
+    /// 결정된 스플릿: 명시적 `split`이 우선; 없으면 `holdout`이면 `val`, 아니면 `train`.
     pub fn split(&self) -> TaskSplit {
         self.split.unwrap_or(if self.holdout {
             TaskSplit::Val
@@ -121,7 +118,7 @@ fn default_rounds() -> u32 {
     3
 }
 
-/// A loaded project: its directory + parsed config.
+/// 로드된 프로젝트: 디렉토리 + 파싱된 설정.
 pub struct Project {
     pub dir: PathBuf,
     pub cfg: ProjectConfig,
@@ -138,13 +135,11 @@ impl Project {
         Ok(Self { dir, cfg })
     }
 
-    /// Absolute path of the repo to worktree.
-    /// - Absolute `repo_path`: used as-is.
-    /// - Relative `repo_path`: resolved against the project dir, so a project is
-    ///   location-independent (works from any cwd), then canonicalized.
-    /// - Empty/omitted (repo-local mode): the git repo enclosing the project dir
-    ///   (i.e. the parent of the `.skillsmith/` home) — a committed-in-repo project
-    ///   needs no path at all.
+    /// worktree할 레포의 절대 경로.
+    /// - 절대 `repo_path`: 그대로 사용.
+    /// - 상대 `repo_path`: 프로젝트 디렉토리 기준으로 해석 (cwd 무관), 이후 정규화.
+    /// - 비어 있음(레포 로컬 모드): 프로젝트 디렉토리를 포함하는 git 레포
+    ///   (`.skillsmith/` 홈의 부모) — 커밋된 레포 내 프로젝트는 경로 불필요.
     pub fn repo(&self) -> Result<PathBuf> {
         let raw = self.cfg.repo_path.trim();
         if raw.is_empty() {
@@ -169,9 +164,9 @@ set repo_path in config.toml",
     }
 }
 
-/// Walk up from `start` to find the nearest ancestor containing a `.skillsmith/`
-/// directory; return that `.skillsmith` path (the repo-local home). Nearest wins,
-/// mirroring how git locates its root. Pure (no env/cwd) so it is unit-testable.
+/// `start`에서 위로 올라가며 `.skillsmith/` 디렉토리를 포함하는 가장 가까운 조상을 찾는다;
+/// 해당 `.skillsmith` 경로(레포 로컬 홈)를 반환. 가장 가까운 것이 우선,
+/// git이 루트를 찾는 방식과 동일. 순수 함수(env/cwd 없음)이므로 단위 테스트 가능.
 pub fn discover_dot_skillsmith(start: &Path) -> Option<PathBuf> {
     for dir in start.ancestors() {
         let candidate = dir.join(".skillsmith");
@@ -182,7 +177,7 @@ pub fn discover_dot_skillsmith(start: &Path) -> Option<PathBuf> {
     None
 }
 
-/// Walk up from `start` to the nearest ancestor that is a git repo root (has `.git`).
+/// `start`에서 위로 올라가며 `.git`이 있는 가장 가까운 git 레포 루트를 찾는다.
 pub fn enclosing_git_root(start: &Path) -> Option<PathBuf> {
     for dir in start.ancestors() {
         if dir.join(".git").exists() {
@@ -192,9 +187,9 @@ pub fn enclosing_git_root(start: &Path) -> Option<PathBuf> {
     None
 }
 
-/// Derive a project-name slug from a path's final component: ASCII-lowercase
-/// alphanumerics kept, every other run collapsed to a single `-`, ends trimmed.
-/// Used to auto-name a project after its repo dir so `skillsmith new` needs no args.
+/// 경로의 마지막 컴포넌트에서 프로젝트 이름 슬러그를 생성: ASCII 소문자 영숫자만 유지,
+/// 나머지 연속 문자는 단일 `-`로 축소, 양끝 트리밍.
+/// `skillsmith new`가 레포 디렉토리 이름으로 프로젝트를 자동 명명하는 데 사용.
 pub fn slug_from_path(p: &Path) -> Option<String> {
     let name = p.file_name()?.to_string_lossy();
     let mut out = String::new();
@@ -209,11 +204,11 @@ pub fn slug_from_path(p: &Path) -> Option<String> {
     (!slug.is_empty()).then_some(slug)
 }
 
-/// Scaffold a new project adapter at `<home>/projects/<name>/` (config + skill).
-/// This is what `skillsmith new` calls — no hand-creating directories. In `local`
-/// (repo-local) mode `repo_path` is omitted (defaults to the enclosing git repo) and
-/// a scratch `.gitignore` is written so `skill.md`/`config.toml` commit but the
-/// generated `skill.staged.md`/`report.md` do not.
+/// `<home>/projects/<name>/`에 새 프로젝트 어댑터(config + skill)를 생성한다.
+/// `skillsmith new`가 호출 — 디렉토리를 직접 만들 필요 없음. `local`
+/// (레포 로컬) 모드에서는 `repo_path`를 생략(포함하는 git 레포를 기본값)하고
+/// `skill.md`/`config.toml`은 커밋되고 생성된 `skill.staged.md`/`report.md`는
+/// 무시되도록 스크래치 `.gitignore`를 작성한다.
 pub fn scaffold_project(home: &Path, name: &str, repo: Option<&str>, local: bool) -> Result<PathBuf> {
     let dir = home.join("projects").join(name);
     if dir.exists() {
@@ -258,8 +253,8 @@ Put durable, project-specific rules here.\n"
     Ok(dir)
 }
 
-/// Write `<home>/.gitignore` (once) so a repo-local `.skillsmith/` commits the
-/// durable artifacts (`skill.md`, `config.toml`) but ignores the generated scratch.
+/// `<home>/.gitignore`를 한 번 작성 — 레포 로컬 `.skillsmith/`가 영구 아티팩트
+/// (`skill.md`, `config.toml`)는 커밋하고 생성된 스크래치는 무시하도록.
 fn ensure_local_gitignore(home: &Path) -> Result<()> {
     let gi = home.join(".gitignore");
     if gi.exists() {
@@ -278,15 +273,15 @@ fn ensure_local_gitignore(home: &Path) -> Result<()> {
     Ok(())
 }
 
-/// One row of `skillsmith list`.
+/// `skillsmith list`의 한 행.
 pub struct ProjectSummary {
     pub name: String,
     pub tasks: usize,
     pub repo: String,
 }
 
-/// Discover every project under `<home>/projects/*/config.toml`. New project
-/// folders appear automatically — no code or integration change needed.
+/// `<home>/projects/*/config.toml` 아래의 모든 프로젝트를 탐색한다.
+/// 새 프로젝트 폴더는 자동으로 인식 — 코드나 통합 변경 불필요.
 pub fn list_projects(home: &Path) -> Result<Vec<ProjectSummary>> {
     let base = home.join("projects");
     let mut out = Vec::new();

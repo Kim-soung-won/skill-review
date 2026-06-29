@@ -1,6 +1,6 @@
-//! Isolated git worktrees for the execution judge. Each task runs in a fresh
-//! detached worktree of the target repo at HEAD, so parallel/repeated evals
-//! never mutate the working tree. Shells out to `git` (no libgit2 dependency).
+//! 실행 judge용 격리된 git worktree. 각 태스크는 HEAD의 대상 레포에 대한
+//! 새로운 detached worktree에서 실행되므로, 병렬/반복 eval이 작업 트리를 절대
+//! 수정하지 않는다. `git`을 셸 호출 (libgit2 의존성 없음).
 
 use anyhow::{Result, bail};
 use std::path::{Path, PathBuf};
@@ -24,7 +24,7 @@ fn unique_dir() -> PathBuf {
     ))
 }
 
-/// `git worktree add --detach <tmp> HEAD` — returns the worktree path.
+/// `git worktree add --detach <tmp> HEAD` — worktree 경로 반환.
 pub async fn add(repo: &Path) -> Result<PathBuf> {
     let wt = unique_dir();
     let path = wt
@@ -44,7 +44,7 @@ pub async fn add(repo: &Path) -> Result<PathBuf> {
     Ok(wt)
 }
 
-/// `git worktree remove --force <tmp>` — best-effort cleanup.
+/// `git worktree remove --force <tmp>` — 최선 노력 정리.
 pub async fn remove(repo: &Path, wt: &Path) -> Result<()> {
     if let Some(path) = wt.to_str() {
         let _ = Command::new("git")

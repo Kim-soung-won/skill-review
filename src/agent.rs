@@ -1,10 +1,10 @@
-//! The "agent" half of an eval: build the prompt (skill + task + context) and
-//! parse the model's file edits. Edit protocol is a wholesale file-block format
-//! (robust to parse, no fuzzy diff application):
+//! eval의 "에이전트" 절반: 프롬프트(스킬 + 태스크 + 컨텍스트)를 구성하고
+//! 모델의 파일 편집 결과를 파싱한다. 편집 프로토콜은 파일 전체를 교체하는 블록 형식
+//! (파싱이 단순하고 퍼지 diff 적용이 불필요):
 //!
 //! ```text
 //! <<<FILE: relative/path.ext>>>
-//! <full new file content>
+//! <전체 새 파일 내용>
 //! <<<END>>>
 //! ```
 
@@ -40,7 +40,7 @@ pub fn agent_user(task: &Task, ctx: &[(String, String)]) -> String {
     s
 }
 
-/// Parse `<<<FILE: path>>> ... <<<END>>>` blocks into edits.
+/// `<<<FILE: path>>> ... <<<END>>>` 블록을 파싱해서 편집 목록으로 변환한다.
 pub fn parse_edits(response: &str) -> Vec<Edit> {
     let mut edits = Vec::new();
     let mut lines = response.lines();

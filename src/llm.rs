@@ -1,13 +1,12 @@
-//! LLM ports + adapters.
+//! LLM 포트 + 어댑터.
 //!
-//! [`LlmProvider`] is the port. Two adapters ship:
-//! - [`CliProvider`] — shells out to an installed agent CLI (claude / codex /
-//!   gemini). Uses the CLI's **own auth — no API key**. This is the default.
-//! - [`GenaiProvider`] — the raw API via `genai` (needs `ANTHROPIC_API_KEY`).
+//! [`LlmProvider`]가 포트. 두 가지 어댑터가 기본 제공:
+//! - [`CliProvider`] — 설치된 에이전트 CLI(claude / codex / gemini)를 셸 호출.
+//!   CLI 자체 인증 사용 — **API 키 불필요**. 기본값.
+//! - [`GenaiProvider`] — `genai` 크레이트를 통한 직접 API (`ANTHROPIC_API_KEY` 필요).
 //!
-//! [`build_provider`] selects one from project config at runtime via the
-//! [`AnyProvider`] enum (enum dispatch — keeps the eval loop generic without
-//! `dyn` async traits).
+//! [`build_provider`]는 런타임에 프로젝트 설정으로 [`AnyProvider`] 열거형을 통해
+//! 하나를 선택 (열거형 디스패치 — `dyn` async 트레이트 없이 eval 루프를 제네릭하게 유지).
 
 use anyhow::{Result, anyhow, bail};
 use genai::Client;
@@ -16,14 +15,14 @@ use tokio::process::Command;
 
 use crate::config::ProjectConfig;
 
-/// Port: a chat backend. Implementors are swappable (CLI, raw API, or a mock).
+/// 포트: 채팅 백엔드. 구현체는 교체 가능 (CLI, 직접 API, 또는 목(mock)).
 #[allow(async_fn_in_trait)]
 pub trait LlmProvider {
     async fn complete(&self, model: &str, system: &str, user: &str) -> Result<String>;
 }
 
-/// Adapter: raw API via `genai` (Claude resolved by the `claude-` model prefix;
-/// key from `ANTHROPIC_API_KEY`).
+/// 어댑터: `genai`를 통한 직접 API (Claude는 `claude-` 모델 접두사로 인식;
+/// `ANTHROPIC_API_KEY`에서 키 읽음).
 pub struct GenaiProvider {
     client: Client,
 }
@@ -50,9 +49,9 @@ impl LlmProvider for GenaiProvider {
     }
 }
 
-/// Adapter: shell out to an installed agent CLI (claude / codex / gemini / …).
-/// Uses the CLI's existing auth — **no API key**. `system` + `user` are combined
-/// into one prompt appended as the final argument; stdout is the response.
+/// 어댑터: 설치된 에이전트 CLI(claude / codex / gemini / …)를 셸 호출.
+/// CLI의 기존 인증 사용 — **API 키 불필요**. `system` + `user`를 하나의 프롬프트로
+/// 결합해 마지막 인자로 전달; stdout이 응답.
 pub struct CliProvider {
     cmd: Vec<String>,
 }
@@ -62,8 +61,8 @@ impl CliProvider {
         Self { cmd }
     }
 
-    /// Built-in command presets for common agent CLIs (prompt appended as the
-    /// final arg). `codex`/`gemini` are best-effort; override via `provider_cmd`.
+    /// 주요 에이전트 CLI의 내장 커맨드 프리셋 (프롬프트가 마지막 인자로 붙음).
+    /// `codex`/`gemini`는 최선 노력; `provider_cmd`로 오버라이드 가능.
     pub fn preset(name: &str) -> Option<Vec<String>> {
         let v = match name {
             "claude" => vec!["claude", "-p"],
@@ -85,7 +84,7 @@ impl LlmProvider for CliProvider {
         let out = Command::new(bin)
             .args(args)
             .arg(&prompt)
-            .current_dir(std::env::temp_dir()) // isolate any stray tool side-effects
+            .current_dir(std::env::temp_dir()) // 도구 부작용 격리
             .output()
             .await
             .map_err(|e| anyhow!("running `{bin}`: {e} (installed and on PATH?)"))?;
@@ -100,8 +99,8 @@ impl LlmProvider for CliProvider {
     }
 }
 
-/// Runtime-selected provider. Enum dispatch avoids `dyn` async-trait while
-/// keeping the eval loop generic over [`LlmProvider`].
+/// 런타임 선택 프로바이더. 열거형 디스패치로 `dyn` async-trait 없이
+/// eval 루프를 [`LlmProvider`]에 대해 제네릭하게 유지.
 pub enum AnyProvider {
     Genai(GenaiProvider),
     Cli(CliProvider),
@@ -116,16 +115,16 @@ impl LlmProvider for AnyProvider {
     }
 }
 
-/// Build a provider from project config (base `provider_cmd`, no stage override).
-/// The default (`"claude"`) uses the installed Claude CLI — no API key required.
+/// 프로젝트 설정으로 프로바이더 생성 (기본 `provider_cmd`, 단계 오버라이드 없음).
+/// 기본값(`"claude"`)은 설치된 Claude CLI 사용 — API 키 불필요.
 pub fn build_provider(cfg: &ProjectConfig) -> Result<AnyProvider> {
     build_provider_with(cfg, &cfg.provider_cmd)
 }
 
-/// Build a provider for one stage, honoring a per-stage `provider_cmd` override
-/// (CLI providers only — `genai` tiers by model, so the command is irrelevant and
-/// both stages resolve to the same raw-API client). An empty `stage_cmd` falls
-/// back to the base `provider_cmd`.
+/// 한 단계용 프로바이더 생성, 단계별 `provider_cmd` 오버라이드 적용
+/// (CLI 프로바이더 전용 — `genai`는 모델로 티어링하므로 커맨드 무관,
+/// 두 단계 모두 동일한 직접 API 클라이언트로 해석됨). 비어 있는 `stage_cmd`는
+/// 기본 `provider_cmd`로 폴백.
 pub fn build_stage_provider(cfg: &ProjectConfig, stage_cmd: &[String]) -> Result<AnyProvider> {
     let cmd = if stage_cmd.is_empty() {
         &cfg.provider_cmd

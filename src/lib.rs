@@ -1,13 +1,13 @@
-//! skillsmith — the project-agnostic optimizer core (library crate).
+//! skillsmith — 프로젝트에 무관한 옵티마이저 코어 (라이브러리 크레이트).
 //!
-//! Ports (traits) are the extension seams:
-//! - [`llm::LlmProvider`] — a chat backend. Adapters: [`llm::GenaiProvider`]
-//!   (raw API) and [`llm::CliProvider`] (an installed agent CLI: claude / codex
-//!   / gemini — uses the CLI's own auth, no API key).
-//! - [`judge::Judge`] — grades an agent's edits. Adapter: [`judge::ExecJudge`]
-//!   (apply in a worktree, run the repo's tests).
+//! 포트(트레이트)는 확장 포인트:
+//! - [`llm::LlmProvider`] — 채팅 백엔드. 어댑터: [`llm::GenaiProvider`]
+//!   (직접 API), [`llm::CliProvider`] (설치된 에이전트 CLI: claude / codex
+//!   / gemini — CLI 자체 인증 사용, API 키 불필요).
+//! - [`judge::Judge`] — 에이전트의 편집을 채점. 어댑터: [`judge::ExecJudge`]
+//!   (worktree에 적용 후 레포 테스트 실행).
 //!
-//! The CLI binary (`main.rs`) is a thin composition root over this API.
+//! CLI 바이너리(`main.rs`)는 이 API의 얇은 컴포지션 루트다.
 
 pub mod agent;
 pub mod bench;

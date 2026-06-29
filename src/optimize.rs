@@ -1,7 +1,7 @@
-//! The optimization loop: baseline -> (propose -> candidate eval -> gate)*.
-//! This is the composition root: it builds the configured provider + judge
-//! adapters and drives the generic eval. The gate keeps a proposal only if it
-//! strictly beats the best score; nothing live is overwritten (staged only).
+//! 최적화 루프: baseline -> (propose -> candidate eval -> gate)*.
+//! 컴포지션 루트: 설정된 프로바이더 + judge 어댑터를 생성하고
+//! 제네릭 eval을 구동한다. 게이트는 제안을 최선 점수를 엄격히 초과할 때만 수락;
+//! 라이브 파일은 덮어쓰지 않음 (staged만 기록).
 
 use crate::config::{Project, Task, TaskSplit};
 use crate::eval::{self, EvalReport};
@@ -31,7 +31,7 @@ fn propose_user(skill: &str, report: &EvalReport, holdout: &HashSet<String>) -> 
     let mut any = false;
     for o in &report.outcomes {
         if holdout.contains(&o.id) {
-            continue; // never leak held-out tasks to the optimizer
+            continue; // held-out 태스크를 옵티마이저에게 절대 노출하지 않음
         }
         if o.score < 1.0 {
             any = true;
@@ -47,10 +47,10 @@ fn propose_user(skill: &str, report: &EvalReport, holdout: &HashSet<String>) -> 
     s
 }
 
-/// Soft guard for auto-authored configs: a held-out test must not also be shown to
-/// the agent. If a task's `verify_cmd` names one of its `context_files`, that file is
-/// almost certainly the answer leaking in. Returns one message per suspected leak
-/// (callers warn; never block — the user may know better). Pure, so it is unit-tested.
+/// 자동 작성 설정의 소프트 가드: held-out 테스트가 에이전트에게 보여지면 안 됨.
+/// 태스크의 `verify_cmd`가 `context_files` 중 하나를 참조하면 답이 노출될 가능성이 높음.
+/// 의심되는 누출당 메시지 하나를 반환 (호출자가 경고; 블로킹 없음 — 사용자가 더 잘 알 수도 있음).
+/// 순수 함수이므로 단위 테스트 가능.
 pub fn answer_leak_warnings(project: &Project) -> Vec<String> {
     let mut out = Vec::new();
     for task in &project.cfg.tasks {
@@ -67,7 +67,7 @@ test may be leaking into the agent's context (remove it from context_files)",
     out
 }
 
-/// Strip a single wrapping ```...``` fence if the model added one.
+/// 모델이 추가했을 경우 단일 래핑 ```...``` 펜스를 제거.
 fn strip_fences(s: &str) -> String {
     let t = s.trim();
     if let Some(rest) = t.strip_prefix("```") {
@@ -77,29 +77,28 @@ fn strip_fences(s: &str) -> String {
     t.to_string()
 }
 
-/// CLI `skillsmith run`: optimize once, write artifacts, discard the returned data.
+/// CLI `skillsmith run`: 한 번 최적화, 아티팩트 기록, 반환 데이터 버림.
 pub async fn run(home: &Path, project_name: &str, plain: bool) -> Result<()> {
     run_once(home, project_name, plain).await.map(|_| ())
 }
 
-/// One optimization run. Returns the machine-readable [`results::Results`] so `bench`
-/// can aggregate it across seeds (the CLI `run` wrapper discards it). Writes
-/// `results.json` / `report.md` / `skill.staged.md` as a side effect, same as before.
+/// 최적화 한 번 실행. `bench`가 시드 간 집계할 수 있도록 머신 리더블 [`results::Results`] 반환.
+/// CLI `run` 래퍼는 이를 버림. `results.json` / `report.md` / `skill.staged.md`를 부작용으로 기록.
 pub async fn run_once(home: &Path, project_name: &str, plain: bool) -> Result<results::Results> {
     let project = Project::load(home, project_name)?;
     for warn in answer_leak_warnings(&project) {
         eprintln!("warning: {warn}");
     }
-    // Per-stage providers: the cheap agent (eval) stage and the optimizer (propose)
-    // stage can use different CLI commands (e.g. a smaller model on the agent stage).
-    // With no overrides both resolve to the base provider — unchanged behaviour.
+    // 단계별 프로바이더: 저렴한 에이전트(eval) 단계와 옵티마이저(propose) 단계가
+    // 서로 다른 CLI 커맨드 사용 가능 (예: 에이전트 단계에 더 작은 모델).
+    // 오버라이드 없으면 둘 다 기본 프로바이더로 해석 — 기존 동작 유지.
     let agent_llm = build_stage_provider(&project.cfg, &project.cfg.agent_provider_cmd)?;
     let optimizer_llm = build_stage_provider(&project.cfg, &project.cfg.optimizer_provider_cmd)?;
     let judge = ExecJudge;
     let emitter = Emitter::new(plain);
-    // Split: `test` tasks are held out of optimization entirely — evaluated ONCE at the
-    // end on the best skill for an unbiased number. `train`+`val` drive the loop; the
-    // gate scores on `val` (the `holdout` set below).
+    // 스플릿: `test` 태스크는 최적화에서 완전히 제외 — 편향 없는 최종 수치를 위해
+    // 마지막에 최선 스킬로 단 한 번 평가. `train`+`val`이 루프를 구동;
+    // 게이트는 `val`(아래 `holdout` 집합)로 점수를 냄.
     let test_tasks: Vec<Task> = project
         .cfg
         .tasks
@@ -119,8 +118,8 @@ pub async fn run_once(home: &Path, project_name: &str, plain: bool) -> Result<re
         .filter(|t| t.split() == TaskSplit::Val)
         .map(|t| t.id.clone())
         .collect();
-    // All train+val tasks are `val` = no training signal (a misconfig). Degrade to
-    // train+gate-on-all instead of wasting rounds.
+    // 모든 train+val 태스크가 `val` = 학습 신호 없음 (잘못된 설정). 라운드를 낭비하는 대신
+    // train+gate-on-all로 대체.
     if !holdout.is_empty() && holdout.len() == train_val.len() {
         eprintln!(
             "warning: every train/val task is `val` — no training signal; treating all as train+val"
@@ -149,9 +148,9 @@ pub async fn run_once(home: &Path, project_name: &str, plain: bool) -> Result<re
 
     let mut best_skill = skill.clone();
     let mut best_score = baseline_score;
-    // Per-task scores of the current best, for showing what moved each round.
+    // 현재 최선의 태스크별 점수 (각 라운드에서 무엇이 변했는지 표시용).
     let mut best_by_id: HashMap<String, f64> = scores_by_id(&baseline);
-    // Machine-readable accumulators for results.json (baseline rows + best rows + gate log).
+    // results.json용 머신 리더블 누산기 (baseline/best 행 + 게이트 로그).
     let baseline_tasks = task_results(&baseline, &holdout);
     let mut best_tasks = baseline_tasks.clone();
     let mut round_results: Vec<results::RoundResult> = Vec::new();
@@ -161,8 +160,8 @@ pub async fn run_once(home: &Path, project_name: &str, plain: bool) -> Result<re
     for round in 1..=project.cfg.rounds {
         emitter.emit(&Event::Stage { label: format!("round {round} · propose") });
         let user = propose_user(&skill, &last_report, &holdout);
-        // A transient provider error (e.g. `claude` exits 1) must NOT abort the run and
-        // discard improvements already won — stop the loop and keep the best so far.
+        // 일시적 프로바이더 오류(예: `claude` exit 1)가 실행을 중단하고
+        // 이미 얻은 개선을 버리면 안 됨 — 루프를 중단하고 지금까지의 최선을 유지.
         let raw = match optimizer_llm
             .complete(&project.cfg.optimizer_model, propose_system(), &user)
             .await
@@ -201,7 +200,7 @@ pub async fn run_once(home: &Path, project_name: &str, plain: bool) -> Result<re
         round_results.push(results::RoundResult {
             round,
             candidate_score: cand_score,
-            best_score, // the score the candidate was gated against (pre-accept)
+            best_score, // 후보가 게이트된 점수 (수락 전)
             accepted,
         });
         last_report = cand;
@@ -210,9 +209,9 @@ pub async fn run_once(home: &Path, project_name: &str, plain: bool) -> Result<re
             best_score = cand_score;
             best_by_id = scores_by_id(&last_report);
             best_tasks = task_results(&last_report, &holdout);
-            skill = proposal; // continue refining from the improved skill
-            // Persist immediately: an accepted improvement is durable from this point,
-            // even if a later round hits a transient provider error and we break out.
+            skill = proposal; // 개선된 스킬에서 계속 정제
+            // 즉시 저장: 수락된 개선은 이 시점부터 영구적,
+            // 이후 라운드에서 일시적 프로바이더 오류로 break해도 사라지지 않음.
             let (staged, _) = stage_best(
                 &project,
                 project_name,
@@ -238,11 +237,11 @@ pub async fn run_once(home: &Path, project_name: &str, plain: bool) -> Result<re
         &rounds_log,
         holdout.len(),
     )?;
-    // Record what these inputs looked like so `skillsmith check` can later detect drift.
+    // 이 실행이 평가된 입력의 드리프트 지문 기록 — 이후 `skillsmith check`가 변경 여부 감지 가능 (토큰 0).
     let config_fp = stamp_drift(&project);
 
-    // Held-out test: evaluate the best skill ONCE on the `test` split (never seen during
-    // optimization) for an unbiased final number. Skipped when there is no test split.
+    // Held-out 테스트: 최적화 중 한 번도 보지 않은 `test` 스플릿에 대해 최선 스킬을
+    // 단 한 번 평가 (편향 없는 최종 수치). test 스플릿이 없으면 건너뜀.
     let mut test_results: Vec<results::TaskResult> = Vec::new();
     let test_score = if test_tasks.is_empty() {
         None
@@ -260,7 +259,7 @@ pub async fn run_once(home: &Path, project_name: &str, plain: bool) -> Result<re
         }
     };
 
-    // Machine-readable results (the benchmark / sweep / CI seam) — alongside report.md.
+    // 머신 리더블 결과 (벤치마크 / 스윕 / CI 심) — report.md와 함께 저장.
     let timestamp_unix = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs())
@@ -304,10 +303,9 @@ pub async fn run_once(home: &Path, project_name: &str, plain: bool) -> Result<re
     Ok(results)
 }
 
-/// `skillsmith bench`: run the optimization `seeds` times and aggregate into a
-/// variance-aware scorecard + a `sweep.jsonl` ledger under `<project>/bench/`. The
-/// agent LLM isn't seedable, so each seed is a fresh independent sample. Spends
-/// `seeds ×` a normal run's tokens — explicit and opt-in.
+/// `skillsmith bench`: 최적화를 `seeds`회 실행하고 분산 인식 스코어카드 +
+/// `sweep.jsonl` 원장을 `<project>/bench/`에 집계. 에이전트 LLM은 시드 고정 불가,
+/// 각 시드는 독립된 새 샘플. `seeds ×` 일반 실행 토큰 소비 — 명시적이고 옵트인.
 pub async fn bench(home: &Path, project_name: &str, seeds: u32, plain: bool) -> Result<()> {
     let project = Project::load(home, project_name)?;
     let seeds = seeds.max(1);
@@ -333,7 +331,7 @@ pub async fn bench(home: &Path, project_name: &str, seeds: u32, plain: bool) -> 
     Ok(())
 }
 
-/// Snapshot of each task's graded score, keyed by task id (for round deltas).
+/// 태스크별 채점 점수 스냅샷, 태스크 id 키 (라운드 델타용).
 fn scores_by_id(report: &EvalReport) -> HashMap<String, f64> {
     report
         .outcomes
@@ -342,7 +340,7 @@ fn scores_by_id(report: &EvalReport) -> HashMap<String, f64> {
         .collect()
 }
 
-/// Per-task outcomes as serializable rows for `results.json` (marks held-out tasks).
+/// `results.json`용 직렬화 가능 행으로 태스크별 결과 반환 (held-out 태스크 표시).
 fn task_results(report: &EvalReport, holdout: &HashSet<String>) -> Vec<results::TaskResult> {
     report
         .outcomes
@@ -356,8 +354,8 @@ fn task_results(report: &EvalReport, holdout: &HashSet<String>) -> Vec<results::
         .collect()
 }
 
-/// Per-task score movements from the prior best to this candidate (changed tasks
-/// only). A task absent from the prior snapshot is treated as unchanged baseline.
+/// 이전 최선에서 현재 후보로의 태스크별 점수 변화 (변경된 태스크만).
+/// 이전 스냅샷에 없는 태스크는 변경 없음으로 처리.
 fn deltas_vs(prev: &HashMap<String, f64>, cand: &EvalReport) -> Vec<Delta> {
     cand.outcomes
         .iter()
@@ -372,9 +370,9 @@ fn deltas_vs(prev: &HashMap<String, f64>, cand: &EvalReport) -> Vec<Delta> {
         .collect()
 }
 
-/// Persist the current best skill (`skill.staged.md`) + `report.md`. Called after every
-/// accepted round so a later transient provider failure can't discard an improvement,
-/// and once more at the end. Returns the staged path and the rendered report.
+/// 현재 최선 스킬(`skill.staged.md`) + `report.md` 저장. 수락된 라운드마다 호출해
+/// 이후 일시적 프로바이더 오류로 개선이 사라지지 않도록 하고, 종료 시 한 번 더 호출.
+/// staged 경로와 렌더링된 리포트를 반환.
 fn stage_best(
     project: &Project,
     project_name: &str,
@@ -391,9 +389,9 @@ fn stage_best(
     Ok((staged, rep))
 }
 
-/// Adopt the staged proposal: copy `skill.staged.md` over the live skill file. This is
-/// the ONE place the live skill is overwritten, invoked explicitly by the user (or the
-/// host agent after a HITL confirm) — never by the optimization loop.
+/// 스테이징된 제안 채택: `skill.staged.md`를 라이브 스킬 파일 위에 복사한다.
+/// 라이브 스킬이 덮어써지는 유일한 지점이며, 사용자(또는 HITL 확인 후 호스트 에이전트)가
+/// 명시적으로 호출 — 최적화 루프가 절대 호출하지 않음.
 pub fn adopt(home: &Path, project_name: &str) -> Result<()> {
     let project = Project::load(home, project_name)?;
     let (staged, live) = adopt_project(&project)?;
@@ -401,9 +399,9 @@ pub fn adopt(home: &Path, project_name: &str) -> Result<()> {
     Ok(())
 }
 
-/// Copy a project's staged proposal over its live skill file; returns (staged, live).
-/// Errors if there is no staged proposal. The staged file is removed after adoption so a
-/// stale proposal can't be silently re-adopted.
+/// 프로젝트의 스테이징된 제안을 라이브 스킬 파일 위에 복사; (staged, live) 반환.
+/// 스테이징된 제안이 없으면 오류. 채택 후 staged 파일을 삭제해 오래된 제안이
+/// 묵묵히 재채택되지 않도록 함.
 pub fn adopt_project(project: &Project) -> Result<(PathBuf, PathBuf)> {
     let staged = project.dir.join("skill.staged.md");
     if !staged.exists() {
@@ -434,17 +432,17 @@ pub async fn eval_only(home: &Path, project_name: &str, plain: bool) -> Result<(
     Ok(())
 }
 
-/// `--watch`: re-run the full optimize loop whenever an input file changes — a
-/// FOREGROUND dev loop for iterating on the skill seed / config. Each pass is a real
-/// run and spends tokens, so this is for active authoring with you at the keyboard,
-/// NOT a background auto-optimizer. For a cheaper feedback loop use `eval --watch`
-/// (re-eval only, no propose rounds). Runs until interrupted (Ctrl-C).
+/// `--watch`: 입력 파일이 변경될 때마다 전체 최적화 루프 재실행 —
+/// 스킬 시드 / 설정 반복 작업을 위한 포그라운드 개발 루프.
+/// 각 패스가 실제 실행이고 토큰을 소비하므로 키보드 앞에서 능동적으로 작성할 때 사용,
+/// 백그라운드 자동 옵티마이저가 아님. 저렴한 피드백 루프는 `eval --watch` 사용
+/// (재eval만, propose 라운드 없음). Ctrl-C로 중단할 때까지 실행.
 pub async fn run_watch(home: &Path, project_name: &str, plain: bool) -> Result<()> {
     watch_loop(home, project_name, plain, false).await
 }
 
-/// `eval --watch`: re-evaluate the current skill on every input change — the cheap
-/// "did my hand-edit to the skill help?" loop (no optimization rounds).
+/// `eval --watch`: 입력 변경 시마다 현재 스킬을 재평가 —
+/// "내 스킬 수정이 도움이 됐나?" 저렴한 루프 (최적화 라운드 없음).
 pub async fn eval_watch(home: &Path, project_name: &str, plain: bool) -> Result<()> {
     watch_loop(home, project_name, plain, true).await
 }
@@ -466,11 +464,11 @@ async fn watch_loop(home: &Path, project_name: &str, plain: bool, eval_mode: boo
     }
 }
 
-/// Files whose change matters. `config.toml` + each task's context/target files in
-/// the repo, plus the live skill **only when `include_skill`** (watch wants a skill
-/// hand-edit to re-run; drift detection does NOT — adopting rewrites skill.md on
-/// purpose, so counting it would flag every adopt as drift). Always EXCLUDES the
-/// generated `skill.staged.md` / `report.md` so a run's own writes aren't inputs.
+/// 감시 대상 파일들. `config.toml` + 레포 내 각 태스크의 context/target 파일,
+/// `include_skill`일 때만 라이브 스킬 포함 (watch는 스킬 수정 시 재실행;
+/// 드리프트 감지는 포함하지 않음 — `adopt`가 skill.md를 의도적으로 재작성하므로
+/// 포함하면 모든 adopt가 드리프트로 잘못 감지됨).
+/// 실행 자체가 생성하는 `skill.staged.md` / `report.md`는 항상 제외.
 fn fingerprint_paths(project: &Project, include_skill: bool) -> Vec<PathBuf> {
     let mut paths = vec![project.dir.join("config.toml")];
     if include_skill {
@@ -486,8 +484,8 @@ fn fingerprint_paths(project: &Project, include_skill: bool) -> Vec<PathBuf> {
     paths
 }
 
-/// Hash `(path, len, mtime)` over a set of files. A missing file hashes as just its
-/// path, so creating it later still flips the fingerprint.
+/// 파일 집합에 대해 `(경로, 크기, mtime)` 해시. 없는 파일은 경로만 해시하므로
+/// 나중에 생성돼도 지문이 바뀜.
 fn hash_paths(paths: &[PathBuf]) -> u64 {
     use std::hash::{Hash, Hasher};
     let mut h = std::collections::hash_map::DefaultHasher::new();
@@ -505,7 +503,7 @@ fn hash_paths(paths: &[PathBuf]) -> u64 {
     h.finish()
 }
 
-/// Watch fingerprint — includes the live skill (a hand-edit should re-run).
+/// Watch 지문 — 라이브 스킬 포함 (직접 수정 시 재실행).
 fn input_fingerprint(home: &Path, project_name: &str) -> u64 {
     match Project::load(home, project_name) {
         Ok(p) => hash_paths(&fingerprint_paths(&p, true)),
@@ -513,30 +511,28 @@ fn input_fingerprint(home: &Path, project_name: &str) -> u64 {
     }
 }
 
-/// Drift fingerprint — the repo inputs (config + target/context files) the skill was
-/// optimized against, EXCLUDING skill.md. Used by `skillsmith check`.
+/// 드리프트 지문 — 스킬이 최적화된 레포 입력(config + target/context 파일),
+/// skill.md 제외. `skillsmith check`에서 사용.
 fn drift_fingerprint(project: &Project) -> u64 {
     hash_paths(&fingerprint_paths(project, false))
 }
 
-/// Scratch file (per project) holding the drift fingerprint of the last `run`.
+/// 드리프트 지문을 저장하는 프로젝트별 스크래치 파일.
 const LAST_RUN: &str = ".last-run";
 
-/// Record the drift fingerprint of the inputs this run was evaluated against, so a
-/// later `skillsmith check` can tell whether they've changed (token-0, no LLM).
-/// Returns the fingerprint so the caller can reuse it (e.g. in `results.json`).
+/// 이 실행이 평가된 입력의 드리프트 지문 기록 — 이후 `skillsmith check`가 변경 여부
+/// 감지 가능 (토큰 0). 호출자가 재사용할 수 있도록 지문 반환 (예: `results.json`).
 fn stamp_drift(project: &Project) -> u64 {
     let fp = drift_fingerprint(project);
     let _ = std::fs::write(project.dir.join(LAST_RUN), fp.to_string());
     fp
 }
 
-/// `skillsmith check`: token-0 **drift detection** — has the repo (config + target/
-/// context files) changed since the last `run`, leaving the optimized skill possibly
-/// stale? Compares the current inputs against the fingerprint stamped at the last run.
-/// Exits non-zero on drift so a git pre-commit hook / CI can branch; it NEVER runs the
-/// optimizer or touches the skill (detection only — re-running + adopting stay the
-/// user's explicit call). This is the safe, frugal half of "auto-strengthen on change".
+/// `skillsmith check`: 토큰 0 **드리프트 감지** — 마지막 `run` 이후 레포
+/// (config + target/context 파일)가 변경되어 최적화된 스킬이 오래됐는가?
+/// 마지막 실행 시 기록된 지문과 현재 입력을 비교.
+/// git pre-commit 훅 / CI가 분기할 수 있도록 드리프트 시 non-zero 종료;
+/// 절대 옵티마이저를 실행하거나 스킬을 수정하지 않음 (감지만 — 재실행+채택은 사용자의 명시적 결정).
 pub fn check(home: &Path, project_name: &str) -> Result<()> {
     let project = Project::load(home, project_name)?;
     let current = drift_fingerprint(&project);
@@ -564,8 +560,8 @@ skill may be stale; consider `skillsmith run --project {project_name}`"
     }
 }
 
-/// Block until an input file changes (1.5s polling — zero-dependency, robust across
-/// editors/platforms, and responsive enough for a hand-edit loop).
+/// 입력 파일이 변경될 때까지 블로킹 (1.5초 폴링 — 의존성 없음, 에디터/플랫폼 무관,
+/// 직접 수정 루프에 충분히 빠름).
 async fn wait_for_input_change(home: &Path, project_name: &str) {
     let start = input_fingerprint(home, project_name);
     loop {
@@ -576,9 +572,9 @@ async fn wait_for_input_change(home: &Path, project_name: &str) {
     }
 }
 
-/// `skillsmith run --project <name> --dry-run`: validate the config and run every
-/// task's verify_cmd in a worktree with NO agent edits and NO LLM — a free preflight
-/// that catches a bad repo_path / verify_cmd / worktree setup before a real run.
+/// `skillsmith run --project <name> --dry-run`: 설정을 검증하고 에이전트 편집 없이,
+/// LLM 없이 모든 태스크의 verify_cmd를 worktree에서 실행 — 실제 실행 전에
+/// repo_path / verify_cmd / worktree 설정이 올바른지 확인하는 무료 프리플라이트.
 pub async fn dry_run(home: &Path, project_name: &str) -> Result<()> {
     let project = Project::load(home, project_name)?;
     for warn in answer_leak_warnings(&project) {
@@ -603,9 +599,9 @@ pub async fn dry_run(home: &Path, project_name: &str) -> Result<()> {
     Ok(())
 }
 
-/// Core of the dry run (generic over the judge so tests can drive it without an
-/// LLM). Runs each verify_cmd on the UNMODIFIED repo (no edits); returns true if
-/// every command executed without an internal error (a failing test is fine).
+/// dry run의 코어 (judge를 제네릭으로 받아 LLM 없이 테스트 가능).
+/// 수정 없이 원본 레포에서 각 verify_cmd를 실행; 모든 커맨드가 내부 오류 없이
+/// 실행되면 true 반환 (테스트 실패는 괜찮음).
 pub async fn dry_run_project<J: Judge>(judge: &J, project: &Project) -> bool {
     let repo = match project.repo() {
         Ok(r) => r,
@@ -630,8 +626,8 @@ pub async fn dry_run_project<J: Judge>(judge: &J, project: &Project) -> bool {
     all_ran
 }
 
-/// Scaffold a new project adapter (`skillsmith new <name>`). In `local` mode the
-/// project lives in a repo-local `.skillsmith/` and `repo_path` is left blank.
+/// 새 프로젝트 어댑터 생성 (`skillsmith new <name>`). `local` 모드에서는
+/// 프로젝트가 레포 로컬 `.skillsmith/`에 위치하고 `repo_path`는 비워둠.
 pub fn new_project(home: &Path, name: &str, repo: Option<&str>, local: bool) -> Result<()> {
     let dir = crate::config::scaffold_project(home, name, repo, local)?;
     println!("created {}", dir.display());
@@ -652,7 +648,7 @@ pub fn new_project(home: &Path, name: &str, repo: Option<&str>, local: bool) -> 
     Ok(())
 }
 
-/// Print discovered projects (`skillsmith list`).
+/// 발견된 프로젝트 출력 (`skillsmith list`).
 pub fn list(home: &Path) -> Result<()> {
     let projects = crate::config::list_projects(home)?;
     let base = home.join("projects");
@@ -676,9 +672,9 @@ mod tests {
         let home = tempfile::tempdir().unwrap();
         crate::config::scaffold_project(home.path(), "p", None, true).unwrap();
         let fp1 = input_fingerprint(home.path(), "p");
-        // Stable on a re-read with no change.
+        // 변경 없이 재읽으면 안정적.
         assert_eq!(fp1, input_fingerprint(home.path(), "p"));
-        // Editing the live skill (length changes) flips the fingerprint -> a re-run.
+        // 라이브 스킬 편집(길이 변경)이 지문을 바꿈 -> 재실행.
         let skill = home.path().join("projects").join("p").join("skill.md");
         let mut body = std::fs::read_to_string(&skill).unwrap();
         body.push_str("\nNEW RULE\n");
@@ -700,13 +696,13 @@ mod tests {
         let drift0 = drift_fingerprint(&project);
         let watch0 = input_fingerprint(home.path(), "p");
 
-        // Editing the skill (the optimizer's OUTPUT): watch re-runs, drift must NOT
-        // flag it — else every `adopt` (which rewrites skill.md) would read as drift.
+        // 스킬 편집(옵티마이저의 출력): watch는 재실행, drift는 감지하면 안 됨 —
+        // 그렇지 않으면 skill.md를 재작성하는 모든 `adopt`가 드리프트로 읽힘.
         std::fs::write(project.skill_path(), "EDITED\n").unwrap();
         assert_ne!(watch0, input_fingerprint(home.path(), "p"), "watch tracks skill edits");
         assert_eq!(drift0, drift_fingerprint(&project), "drift ignores skill edits");
 
-        // Editing config (an INPUT the skill was optimized against): drift notices.
+        // config 편집(스킬이 최적화된 입력): drift가 감지함.
         let cfg = project.dir.join("config.toml");
         let touched = std::fs::read_to_string(&cfg).unwrap() + "\n# touched\n";
         std::fs::write(&cfg, touched).unwrap();

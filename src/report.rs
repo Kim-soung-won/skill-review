@@ -1,4 +1,4 @@
-//! Render a human-readable run report (also written to `report.md`).
+//! 사람이 읽을 수 있는 실행 리포트 렌더링 (`report.md`에도 저장됨).
 
 pub fn render(
     project: &str,

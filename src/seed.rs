@@ -1,8 +1,7 @@
-//! Zero-config seeding: materialize the bundled `demo` project into the home dir
-//! (default `~/.skillsmith`) so the installed binary works from any cwd with no
-//! env var. The demo's eval fixture is a self-contained git repo created here (it
-//! is NOT committed in the skillsmith repo) so the execution judge can
-//! `git worktree` it.
+//! 제로 설정 시딩: 번들 `demo` 프로젝트를 홈 디렉토리(기본값 `~/.skillsmith`)에
+//! 구체화 — 설치된 바이너리가 env var 없이 어떤 cwd에서도 동작하도록.
+//! 데모의 eval fixture는 여기서 생성되는 독립 git 레포 (skillsmith 레포에는 커밋되지 않음)로,
+//! 실행 judge가 `git worktree`할 수 있게 한다.
 
 use anyhow::{Context, Result};
 use std::path::Path;
@@ -15,8 +14,8 @@ const FX_TEST_STRINGS: &str = include_str!("../assets/demo/fixture/test_strings.
 const FX_FORMAT: &str = include_str!("../assets/demo/fixture/format.py");
 const FX_TEST_FORMAT: &str = include_str!("../assets/demo/fixture/test_format.py");
 
-/// Seed the demo only if the home has no projects yet (idempotent, cheap).
-/// Called before run/eval/list so a fresh install "just works".
+/// 홈에 프로젝트가 없을 때만 데모를 시드 (idempotent, 저렴).
+/// run/eval/list 전에 호출해 새로 설치해도 "바로 동작"하도록.
 pub fn ensure_seeded(home: &Path) -> Result<()> {
     if crate::config::list_projects(home)?.is_empty() {
         write_demo(home)?;
@@ -24,7 +23,7 @@ pub fn ensure_seeded(home: &Path) -> Result<()> {
     Ok(())
 }
 
-/// `skillsmith init` — (re)materialize a pristine demo and report the path.
+/// `skillsmith init` — 깨끗한 데모를 (재)구체화하고 경로를 출력.
 pub fn init(home: &Path) -> Result<()> {
     let dir = home.join("projects").join("demo");
     if dir.exists() {
@@ -57,7 +56,7 @@ fn write_if_absent(path: &Path, content: &str) -> Result<()> {
     Ok(())
 }
 
-/// `git init` + commit the fixture (idempotent) so ExecJudge can worktree it.
+/// fixture를 `git init` + 커밋 (idempotent) — ExecJudge가 worktree할 수 있도록.
 fn ensure_git_repo(dir: &Path) -> Result<()> {
     if dir.join(".git").exists() {
         return Ok(());

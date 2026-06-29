@@ -1,5 +1,5 @@
-//! Run a full eval pass of a given skill — generic over the LLM and judge ports,
-//! so the binary injects real adapters and tests inject mocks.
+//! 주어진 스킬에 대해 전체 eval 패스를 실행한다 — LLM과 judge 포트에 대해 제네릭으로 구현되어
+//! 바이너리에서는 실제 어댑터를, 테스트에서는 목(mock)을 주입할 수 있다.
 
 use crate::agent;
 use crate::config::{Project, Task};
@@ -15,14 +15,14 @@ pub struct EvalReport {
 }
 
 impl EvalReport {
-    /// Mean graded score across all tasks (continuous in [0,1]).
+    /// 전체 태스크의 평균 점수 (연속값, 범위 [0,1]).
     pub fn score(&self) -> f64 {
         mean(self.outcomes.iter().map(|o| o.score))
     }
 
-    /// Gate score: mean over held-out (val) tasks when any exist, else all tasks.
-    /// This is what the optimizer's accept/reject gate compares — so improvements
-    /// are credited only when they generalize to tasks the optimizer never saw.
+    /// 게이트 점수: held-out(val) 태스크가 있으면 그 평균, 없으면 전체 평균.
+    /// 옵티마이저의 수락/거절 게이트가 비교하는 값 — 옵티마이저가 한 번도 본 적 없는
+    /// 태스크에서도 개선이 일반화될 때만 점수로 인정된다.
     pub fn gate_score(&self, holdout: &std::collections::HashSet<String>) -> f64 {
         if holdout.is_empty() {
             return self.score();

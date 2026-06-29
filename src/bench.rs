@@ -1,15 +1,14 @@
-//! Benchmark aggregation — turn k independent runs into a variance-aware scorecard.
+//! 벤치마크 집계 — k번의 독립 실행 결과를 분산 인식 스코어카드로 변환한다.
 //!
-//! `skillsmith bench` runs the optimization k times and feeds the per-run
-//! [`Results`] here. The agent LLM isn't seedable, so each "seed" is a fresh
-//! independent sample; the variance across them is the signal — a strict `>` gate
-//! on a single sample can't tell noise from a real improvement, but k samples plus
-//! a standard deviation can. Pure functions (stats + rendering), so they're tested.
+//! `skillsmith bench`는 최적화를 k회 실행하고 실행별 [`Results`]를 여기에 전달한다.
+//! 에이전트 LLM은 시드를 고정할 수 없으므로 각 "시드"는 독립된 새 샘플이다;
+//! 실행 간 분산이 핵심 신호 — 단일 샘플에 대한 엄격한 `>` 게이트는 노이즈와 실제 개선을
+//! 구분하지 못하지만, k개 샘플과 표준편차는 구분할 수 있다. 순수 함수(통계 + 렌더링)이므로 테스트 가능.
 
 use crate::results::Results;
 
-/// Summary statistics over one metric across runs. Sample stddev (divides by n-1),
-/// so a single run reports 0 spread rather than a misleading population value.
+/// 여러 실행에 걸친 한 지표의 요약 통계. 표본 표준편차(n-1로 나눔)를 사용하므로
+/// 단일 실행은 오해를 줄 수 있는 모집단 값 대신 분산 0을 리포트한다.
 pub struct Stat {
     pub mean: f64,
     pub stddev: f64,
@@ -18,7 +17,7 @@ pub struct Stat {
     pub n: usize,
 }
 
-/// Mean / sample-stddev / min / max over the values (empty -> all zero, n = 0).
+/// 값들의 평균 / 표본 표준편차 / 최솟값 / 최댓값 (비어 있으면 모두 0, n = 0).
 pub fn stat(values: &[f64]) -> Stat {
     let n = values.len();
     if n == 0 {
@@ -39,7 +38,7 @@ pub fn stat(values: &[f64]) -> Stat {
     }
 }
 
-/// One JSON object per run, newline-delimited — a sweep ledger for downstream tools.
+/// 실행별로 JSON 한 줄씩 출력 — 하위 도구를 위한 스윕 원장.
 pub fn sweep_jsonl(runs: &[Results]) -> serde_json::Result<String> {
     let mut s = String::new();
     for r in runs {
@@ -49,7 +48,7 @@ pub fn sweep_jsonl(runs: &[Results]) -> serde_json::Result<String> {
     Ok(s)
 }
 
-/// Human-readable markdown scorecard: per-seed rows + aggregate (mean ± stddev).
+/// 사람이 읽을 수 있는 마크다운 스코어카드: 시드별 행 + 집계(평균 ± 표준편차).
 pub fn scorecard(project: &str, runs: &[Results]) -> String {
     let baseline = stat(&runs.iter().map(|r| r.baseline_score).collect::<Vec<_>>());
     let best = stat(&runs.iter().map(|r| r.best_score).collect::<Vec<_>>());
@@ -134,7 +133,7 @@ mod tests {
     fn stat_mean_and_sample_stddev() {
         let s = stat(&[0.6, 0.7, 0.8]);
         assert!((s.mean - 0.7).abs() < 1e-9);
-        // sample stddev = sqrt((0.01 + 0.0 + 0.01) / (3-1)) = 0.1
+        // 표본 표준편차 = sqrt((0.01 + 0.0 + 0.01) / (3-1)) = 0.1
         assert!((s.stddev - 0.1).abs() < 1e-9);
         assert_eq!(s.n, 3);
         assert!((s.min - 0.6).abs() < 1e-9 && (s.max - 0.8).abs() < 1e-9);
@@ -161,7 +160,7 @@ mod tests {
         assert!(card.contains("2 seed(s)"));
         assert!(card.contains("## Aggregate"));
         assert!(card.contains("| best | 0.700 |"), "best mean across seeds");
-        // sweep ledger has one line per run.
+        // 스윕 원장은 실행당 한 줄.
         let jsonl = sweep_jsonl(&runs).unwrap();
         assert_eq!(jsonl.lines().count(), 2);
         assert!(jsonl.lines().all(|l| l.contains("\"best_score\"")));
