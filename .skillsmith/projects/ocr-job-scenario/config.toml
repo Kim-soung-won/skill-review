@@ -1,0 +1,33 @@
+name = "ocr-job-scenario"
+repo_path = "fixture"
+skill_file = "skill.md"
+provider = "claude"
+rounds = 3
+
+# Task 1 (train): 폴링 중단 조건 — processing.overallStatus 필드를 스킬에서 읽어야 통과.
+# 스킬 없이 processing.status / document.status 등으로 작성하면 실패.
+[[task]]
+id = "polling-condition"
+intent = """
+ocr-polling.utils.ts 에 shouldStopPolling(document: unknown): boolean 을 구현하라.
+문서 처리가 완료(성공 또는 실패)됐을 때 true 를 반환한다.
+확인할 필드 경로와 완료를 나타내는 값들은 PROJECT SKILL 을 따른다.
+"""
+context_files = []
+target_files = ["ocr-polling.utils.ts"]
+verify_cmd = "npx --yes tsx test_polling.ts"
+
+# Task 2 (val / holdout): KV 페이지 조회 — pageNumber 필드로 매칭해야 통과.
+# 배열 인덱스로 접근하면 selectedPage=2가 pages[2]를 반환 → 범위 초과 or 엉뚱한 데이터.
+[[task]]
+id = "kv-page-lookup"
+split = "val"
+intent = """
+ocr-kv.utils.ts 에 getPageKvItems(kvResult: unknown, selectedPage: number): Array<{Key: string; type: string; Value: string}> 를 구현하라.
+분석 결과에서 선택된 페이지의 KV 항목 배열을 반환한다.
+페이지를 찾지 못하면 빈 배열을 반환한다.
+결과에서 페이지를 식별하고 매칭하는 방법은 PROJECT SKILL 을 따른다.
+"""
+context_files = []
+target_files = ["ocr-kv.utils.ts"]
+verify_cmd = "npx --yes tsx test_kv_lookup.ts"

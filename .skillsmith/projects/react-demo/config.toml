@@ -1,0 +1,31 @@
+name = "react-demo"
+# fixture/는 독립 git 레포 — ExecJudge가 git worktree로 격리 실행.
+repo_path = "fixture"
+skill_file = "skill.md"
+provider = "claude"
+rounds = 2
+
+# Task 1 — 쉬움: intent에 동작이 완전히 명시되어 있어 에이전트가 통과.
+# 파이프라인 정상 동작 확인용.
+[[task]]
+id = "format_price"
+intent = """Implement `formatPrice(amount, currency)` in src/utils/format.ts.
+Return a price string: KRW → ₩ prefix with thousands comma separator (e.g. ₩1,500,000),
+USD → $ prefix with thousands comma separator (e.g. $1,500). No decimal places."""
+context_files = ["src/utils/format.ts"]
+target_files  = ["src/utils/format.ts"]
+setup_cmd     = "npm install --prefer-offline --silent 2>/dev/null || npm install --silent"
+verify_cmd    = "npx vitest run src/utils/format.test.ts --reporter=verbose"
+
+# Task 2 — 컨벤션: className 규칙이 intent에 없고 테스트에만 있음.
+# skill.md에 BEM 규칙이 없으면 실패. 옵티마이저가 실패 로그에서
+# "status-badge--active" 패턴을 읽고 skill.md에 추가 → 통과.
+[[task]]
+id = "status_badge"
+intent = """Implement `StatusBadge` React component in src/components/StatusBadge.tsx.
+It receives a `status` prop ('active' | 'inactive' | 'pending') and renders a <span>
+that shows the status label. Follow the PROJECT SKILL for styling conventions."""
+context_files = ["src/components/StatusBadge.tsx"]
+target_files  = ["src/components/StatusBadge.tsx"]
+setup_cmd     = "npm install --prefer-offline --silent 2>/dev/null || npm install --silent"
+verify_cmd    = "npx vitest run src/components/StatusBadge.test.tsx --reporter=verbose"

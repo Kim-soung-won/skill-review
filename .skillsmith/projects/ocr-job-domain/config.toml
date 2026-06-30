@@ -1,0 +1,33 @@
+name = "ocr-job-domain"
+repo_path = "fixture"
+skill_file = "skill.md"
+provider = "claude"
+rounds = 3
+
+# Task 1 (train): KvItem 필드 접근 — Key/Value가 PascalCase임을 스킬에서 읽어야 통과.
+# 스킬 없이 작성하면 item.key / item.value (undefined) → 실패.
+[[task]]
+id = "render-kv-item"
+intent = """
+ocr-job.utils.ts 에 renderKvValue(item: unknown): string 을 구현하라.
+문서 분석 결과의 KV 항목 하나를 받아 "{키}: {값}" 형식의 문자열을 반환한다.
+항목 객체의 올바른 필드명은 PROJECT SKILL 을 따른다.
+"""
+context_files = []
+target_files = ["ocr-job.utils.ts"]
+verify_cmd = "npx --yes tsx test_render_kv.ts"
+
+# Task 2 (val / holdout): maskedKv pending 상태 guard — pending이면 {} (null 아님).
+# null 체크로 구현하면 빈 객체를 통과시키지 못해 실패.
+[[task]]
+id = "guard-masked-kv"
+split = "val"
+intent = """
+ocr-masking.utils.ts 에 getMaskedKvItems(maskedKv: unknown): Array<{Key: string; type: string; Value: string}> 를 구현하라.
+마스킹 결과에서 통합 KV 항목 배열을 추출한다.
+항목이 없으면 빈 배열을 반환한다.
+maskedKv 의 데이터 구조와 엣지 케이스는 PROJECT SKILL 을 따른다.
+"""
+context_files = []
+target_files = ["ocr-masking.utils.ts"]
+verify_cmd = "npx --yes tsx test_masked_kv.ts"

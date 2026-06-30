@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "project": "react-demo",
+  "timestamp_unix": 1782778829,
+  "provider": "claude",
+  "agent_model": "claude-sonnet-4-6",
+  "optimizer_model": "claude-opus-4-8",
+  "rounds_configured": 2,
+  "holdout_count": 0,
+  "config_fingerprint": "16119827293908115543",
+  "llm_calls": 8,
+  "elapsed_ms": 69495,
+  "baseline_score": 0.5,
+  "best_score": 1.0,
+  "lift": 0.5,
+  "test_score": null,
+  "baseline": [
+    {
+      "id": "format_price",
+      "passed": true,
+      "score": 1.0,
+      "holdout": false
+    },
+    {
+      "id": "status_badge",
+      "passed": false,
+      "score": 0.0,
+      "holdout": false
+    }
+  ],
+  "best": [
+    {
+      "id": "format_price",
+      "passed": true,
+      "score": 1.0,
+      "holdout": false
+    },
+    {
+      "id": "status_badge",
+      "passed": true,
+      "score": 1.0,
+      "holdout": false
+    }
+  ],
+  "test": [],
+  "rounds": [
+    {
+      "round": 1,
+      "candidate_score": 1.0,
+      "best_score": 0.5,
+      "accepted": true
+    },
+    {
+      "round": 2,
+      "candidate_score": 1.0,
+      "best_score": 1.0,
+      "accepted": false
+    }
+  ],
+  "staged_path": "/Users/metabuild/Desktop/private_2026/skill-review/.skillsmith/projects/react-demo/skill.staged.md"
+}

@@ -1,0 +1,32 @@
+name = "ocr-job-api"
+repo_path = "fixture"
+skill_file = "skill.md"
+provider = "claude"
+rounds = 3
+
+# Task 1 (train): 업로드 URL — 엔드포인트 경로와 쿼리 파라미터 이름을 스킬에서 읽어야 통과.
+# 스킬 없이 작성하면 /api/upload, auto_process 등 임의 경로 → 실패.
+[[task]]
+id = "upload-url"
+intent = """
+ocr-job.service.ts 에 buildUploadUrl(process: boolean): string 을 구현하라.
+문서 업로드에 사용하는 쿼리 파라미터가 포함된 전체 API 경로를 반환한다.
+올바른 엔드포인트 경로와 쿼리 파라미터 이름은 PROJECT SKILL 을 따른다.
+"""
+context_files = []
+target_files = ["ocr-job.service.ts"]
+verify_cmd = "npx --yes tsx test_upload_url.ts"
+
+# Task 2 (val / holdout): 분석 URL casing — zeroShot/fewShot (camelCase) vs zero-shot (kebab).
+# 스킬 없이 zero-shot으로 작성하면 실패.
+[[task]]
+id = "analysis-url"
+split = "val"
+intent = """
+ocr-analysis.service.ts 에 buildAnalysisUrl(documentId: string, type: string): string 을 구현하라.
+특정 문서에 대해 분석을 실행하는 API 경로를 반환한다.
+엔드포인트 구조와 URL 에 포함되는 분석 타입 값의 정확한 casing 은 PROJECT SKILL 을 따른다.
+"""
+context_files = []
+target_files = ["ocr-analysis.service.ts"]
+verify_cmd = "npx --yes tsx test_analysis_url.ts"
